@@ -97,6 +97,42 @@ def login():
     else:
         return jsonify({'error': 'Invalid email or password'}), 401
 
+# Route to get user's uploaded videos
+@app.route('/user-uploads/<user_id>', methods=['GET'])
+def get_user_uploads(user_id):
+    # Get the list of videos uploaded by the user
+    videos = ProcessedVideos.query.filter_by(user_id=user_id).all()
+    
+    # Return a list of videos (video path and other metadata)
+    return jsonify([{
+        'id': video.id,
+        'video_path': f"/output_video/{os.path.basename(video.video_path)}",  # Include the full URL
+        'processed_at': video.processed_at.strftime('%Y-%m-%d %H:%M:%S')
+    } for video in videos]), 200
+
+
+
+# Route to delete a user's uploaded video
+@app.route('/delete-video/<video_id>', methods=['DELETE'])
+def delete_video(video_id):
+    # Find the video in the database
+    video = ProcessedVideos.query.filter_by(id=video_id).first()
+    
+    if video:
+        # Delete the video from the database
+        db.session.delete(video)
+        db.session.commit()
+        
+        # Delete the actual video file from the server
+        try:
+            os.remove(video.video_path)  # Delete the video file
+        except Exception as e:
+            return jsonify({'error': f'Error deleting video file: {str(e)}'}), 500
+
+        return jsonify({'message': 'Video deleted successfully'}), 200
+    else:
+        return jsonify({'error': 'Video not found'}), 404
+
 # Route to process the video
 @app.route('/process-video', methods=['POST'])
 def process_video():
@@ -170,7 +206,10 @@ def process_video():
         ]
         subprocess.run(ffmpeg_command, check=True)
 
-        # Save the processed video path in the database
+        # Delete the processed video after conversion
+        os.remove(output_path)  # Optionally, delete the processed video after conversion
+
+        # Save the converted (correct) video path in the database
         processed_video = ProcessedVideos(user_id=user_id, video_path=converted_output_path)
         db.session.add(processed_video)
         db.session.commit()
