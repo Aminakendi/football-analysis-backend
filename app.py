@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
 import os
@@ -12,17 +11,14 @@ from object_detection import process_yolo_video_with_teams
 
 # Flask app and database initialization
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost/football_cv'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Disable track modifications to avoid overhead
-app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # Change this to a secure secret
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Token expires in 1 hour
 
-# Initialize the database and JWT manager
+# Initialize the database
 db = SQLAlchemy(app)
-jwt = JWTManager(app)
 
 # Define upload and output folders
 UPLOAD_FOLDER = 'uploads'
@@ -50,6 +46,20 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.name}>'
 
+# ProcessedVideos model
+class ProcessedVideos(db.Model):
+    __tablename__ = 'processed_videos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    video_path = db.Column(db.String(255), nullable=False)
+    processed_at = db.Column(db.DateTime, default=db.func.now())
+    
+    user = db.relationship('User', backref=db.backref('processed_videos', lazy=True))
+
+    def __repr__(self):
+        return f'<ProcessedVideos {self.video_path}>'
+
 # Route to register a new user
 @app.route('/register', methods=['POST'])
 def register():
@@ -70,7 +80,7 @@ def register():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({'message': 'User registered successfully'}), 201
+    return jsonify({'message': 'User registered successfully', 'user_id': new_user.id}), 201
 
 # Route to login an existing user
 @app.route('/login', methods=['POST'])
@@ -83,27 +93,29 @@ def login():
     user = User.query.filter_by(email=email).first()
     if user and check_password_hash(user.password_hash, password):
         # User exists and password is correct
-        access_token = create_access_token(identity=user.id)  # Use the user's ID as identity
-        return jsonify({'access_token': access_token}), 200
+        return jsonify({'message': 'Login successful', 'user_id': user.id}), 200
     else:
         return jsonify({'error': 'Invalid email or password'}), 401
 
-# Route to process the video (protected by JWT)
+# Route to process the video
 @app.route('/process-video', methods=['POST'])
-@jwt_required()  # Protect the route with JWT authentication
 def process_video():
-    # Get the identity (user ID) from the JWT token
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
+    data = request.form
+    user_id = data.get('user_id')  # Get user_id from the request
 
-    # Log or use the username if needed (e.g., to associate the video with a user)
-    print(f"User {user.name} (ID: {current_user_id}) is uploading a video")
+    # Check if user_id is provided
+    if not user_id:
+        return jsonify({'error': 'User ID is required'}), 400
+
+    # Retrieve the user by user_id
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
 
     if 'video' not in request.files:
         return jsonify({'error': 'No video file provided'}), 400
-    
+
     video = request.files['video']
-    data = request.form
 
     if not allowed_file(video.filename):
         return jsonify({'error': 'Unsupported file type'}), 400
@@ -158,11 +170,17 @@ def process_video():
         ]
         subprocess.run(ffmpeg_command, check=True)
 
+        # Save the processed video path in the database
+        processed_video = ProcessedVideos(user_id=user_id, video_path=converted_output_path)
+        db.session.add(processed_video)
+        db.session.commit()
+
     except Exception as e:
         return jsonify({'error': f'Error processing video: {str(e)}'}), 500
 
     # Return the path to the converted output video
     return jsonify({'message': 'Video processed and converted successfully', 'output_video': f'/output_video/{converted_output_filename}'}), 200
+
 
 # Route to serve processed videos
 @app.route('/output_video/<filename>', methods=['GET'])
