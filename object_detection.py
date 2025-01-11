@@ -24,7 +24,7 @@ def draw_possession_stats(frame, team1_percent, team2_percent):
     """Display possession stats with a professional design."""
     height, width, _ = frame.shape
     overlay = frame.copy()
-    bar_width = 300
+    bar_width = 500
     bar_height = 30
     bar_x = (width - bar_width) // 2
     bar_y = 10
@@ -182,8 +182,8 @@ if __name__ == "__main__":
 
     process_yolo_video_with_teams(
         model_path='models/object.pt',
-        video_path='input_video/08fd33_4.mp4',
-        output_path='output_video/teams_tracked_possession_style.mp4',
+        video_path='input_video/08fd33_4 - Copy (2).mp4',
+        output_path='output_video/teams_tracked_possession_bar.mp4',
         club1=club1,
         club2=club2
     )
