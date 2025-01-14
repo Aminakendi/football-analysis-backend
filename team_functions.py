@@ -100,9 +100,9 @@ def get_jersey_color(frame: np.ndarray, bbox: Tuple[int, int, int, int], is_goal
 
     if is_goalkeeper:
         # If the player is a goalkeeper, use the predefined goalkeeper color
-        return (int(img[0][0][0]), int(img[0][0][1]), int(img[0][0][2]))  # BGR format, just an example
+        return (int(img[0][0][0]), int(img[0][0][1]), int(img[0][0][2]))  # BGR format
     else:
-        # Apply color clustering or any other logic to extract the jersey color for players
+        # Apply color clustering 
         img_top = img[:img.shape[0] // 2, :]  # Only consider the top part of the cropped image
         masked_img_top = apply_mask(img_top, green_threshold=0.08)  # Mask out green areas (e.g., grass)
         return perform_clustering(masked_img_top)

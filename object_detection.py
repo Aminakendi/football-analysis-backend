@@ -24,7 +24,7 @@ def draw_possession_stats(frame, team1_percent, team2_percent):
     """Display possession stats with a professional design."""
     height, width, _ = frame.shape
     overlay = frame.copy()
-    bar_width = 300
+    bar_width = 500
     bar_height = 30
     bar_x = (width - bar_width) // 2
     bar_y = 10
@@ -88,7 +88,7 @@ def process_yolo_video_with_teams(model_path, video_path, output_path, club1, cl
             class_id = int(detection.cls[0])
             confidence = detection.conf[0]
 
-            # Exclude ball (class_id == 0) and referee (class_id == 3)
+            # Exclude referee (class_id == 3)
             if class_id != 3 and confidence >= 0.25:
                 x1, y1, x2, y2 = detection.xyxy[0]
                 bboxes.append([x1, y1, x2, y2])
@@ -172,18 +172,3 @@ def process_yolo_video_with_teams(model_path, video_path, output_path, club1, cl
     out.release()
     cv2.destroyAllWindows()
 
-
-if __name__ == "__main__":
-    from team_functions import Club
-
-    # Define the two clubs
-    club1 = Club(name="Team1", player_jersey_color=(232, 247, 248), goalkeeper_jersey_color=(6, 25, 21))
-    club2 = Club(name="Team2", player_jersey_color=(172, 251, 145), goalkeeper_jersey_color=(239, 156, 132))
-
-    process_yolo_video_with_teams(
-        model_path='models/object.pt',
-        video_path='input_video/08fd33_4.mp4',
-        output_path='output_video/teams_tracked_possession_style.mp4',
-        club1=club1,
-        club2=club2
-    )
