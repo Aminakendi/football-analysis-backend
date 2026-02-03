@@ -1,0 +1,14 @@
+# AI and Computer Vision
+ultralytics>=8.3.0
+opencv-python
+filterpy
+numpy
+
+# Web Server and API
+flask
+flask-cors
+python-dotenv
+
+# Data Analysis
+pandas
+scikit-learn
